@@ -1,0 +1,276 @@
+Bootstrap: docker
+From: python:3.10-slim-bookworm
+
+%labels
+    Author CyTRACK Team
+    Version 2.0
+    Description CyTRACK - Cyclone Tracking Framework with MPI support
+
+%help
+    CyTRACK (Cyclone TRACKing framework) - MPI-parallel cyclone detection and tracking tool.
+    
+    Build with:
+        sudo apptainer build cytrack.sif cytrack.def --build-arg GITHUB_TOKEN=<your_token>
+    
+    Usage:
+        apptainer shell cytrack.sif
+        apptainer exec cytrack.sif cytrack-test
+
+%arguments
+    GITHUB_TOKEN=
+
+%post
+    echo {{ githubtoken }}
+    # Update package lists and install system dependencies
+    apt-get update && apt-get install -y \
+        curl \
+        wget \
+        ca-certificates \
+        gcc \
+        g++ \
+        gfortran \
+        make \
+        cmake \
+        git \
+        build-essential \
+        pkg-config \
+        libpq-dev \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        libxml2-dev \
+        libgeos-dev \
+        libproj-dev \
+        libsqlite3-dev \
+        libbz2-dev \
+        libffi-dev \
+        libncurses5-dev \
+        libreadline-dev \
+        liblzma-dev \
+        zlib1g-dev \
+        libzstd-dev \
+        libjpeg-dev \
+        libpng-dev \
+        libtiff-dev \
+        libhdf5-dev \
+        libnetcdf-dev \
+        libopenblas-dev \
+        liblz4-dev \
+        libsnappy-dev \
+        libbrotli-dev \
+        proj-bin \
+        libproj-dev \
+        libgeos++-dev \
+        unzip \
+        gdal-bin \
+        libgdal-dev \
+        openmpi-bin \
+        libopenmpi-dev \
+        zsh \
+        lsd \
+        vim \
+        less
+
+    # Install UV to a system-wide location
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    cp /root/.local/bin/uv /usr/local/bin/
+    cp /root/.local/bin/uvx /usr/local/bin/
+    chmod +x /usr/local/bin/uv /usr/local/bin/uvx
+
+    # Install Oh My Posh
+    wget https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-linux-amd64 -O /usr/local/bin/oh-my-posh
+    chmod +x /usr/local/bin/oh-my-posh
+
+    # Download atomic theme
+    mkdir -p /opt/themes
+    wget -O /opt/themes/atomic.omp.json https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/atomic.omp.json
+
+    # Clone the CyTRACK repository using token if provided
+    echo "Cloning private repository with token..."
+    git clone https://{{ githubtoken }}@github.com/aashraychegu/cytrack-v2.git /opt/cytrack
+
+    # Only continue if clone was successful
+    if [ ! -d "/opt/cytrack/.git" ]; then
+        echo "ERROR: Failed to clone repository. Exiting."
+        exit 1
+    fi
+
+    # Create pyproject.toml for UV package management
+    cd /opt/cytrack
+    cat > pyproject.toml << 'PYPROJECT_EOF'
+[project]
+name = "cytrack"
+version = "2.0.0"
+description = "CyTRACK - Cyclone Tracking Framework"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.20",
+    "scipy>=1.7",
+    "xarray>=0.20",
+    "netCDF4>=1.5",
+    "zarr>=2.16",
+    "numcodecs>=0.12",
+    "mpi4py>=3.0",
+    "scikit-learn>=1.0",
+    "matplotlib>=3.4",
+    "cartopy>=0.20",
+    "cdsapi>=0.7",
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "isort>=5.12",
+    "ruff>=0.1",
+]
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --tb=short"
+PYPROJECT_EOF
+
+    # Create venv and sync dependencies
+    /usr/local/bin/uv venv .venv --python 3.10
+    /usr/local/bin/uv pip install -e .
+
+    # Install CyTRACK from src
+    cd /opt/cytrack/src
+    /opt/cytrack/.venv/bin/pip install -e .
+
+    # Create test data directory structure
+    mkdir -p /opt/cytrack/testing_CyTRACK/data/ERA5_data
+    mkdir -p /opt/cytrack/testing_CyTRACK/CyTRACK_output
+
+    # Create writable ZDOTDIR
+    mkdir -p /opt/zshdir
+    
+    # Create .zshrc with Oh My Posh initialization and CyTRACK setup
+    cat > /opt/zshdir/.zshrc << 'EOF'
+# Initialize Oh My Posh
+eval "$(oh-my-posh init zsh --config /opt/themes/atomic.omp.json)"
+
+# Change to project directory
+cd /opt/cytrack
+
+# Activate virtual environment
+source .venv/bin/activate
+
+# Aliases
+alias ll='lsd -lah'
+alias ls='lsd'
+alias python='python3'
+alias pip='uv pip'
+alias pytest='python -m pytest'
+alias cytrack-test='cd /opt/cytrack/testing_CyTRACK && mpirun -n 1 python run_CyTRACK.py -pf test_CyTRACK.cfg'
+alias cytrack-help='python -c "import cytrack; cytrack.help()"'
+
+# Environment variables
+export CYTRACK_HOME=/opt/cytrack
+export OMP_NUM_THREADS=1
+export PYTHONPATH=/opt/cytrack/src:$PYTHONPATH
+
+# Welcome message
+echo ""
+echo "╔════════════════════════════════════════════════════════════╗"
+echo "║                  CyTRACK v2.0 Container                    ║"
+echo "╠════════════════════════════════════════════════════════════╣"
+echo "║ Python:      $(python3 --version | cut -d' ' -f2)                                        ║"
+echo "║ UV:          $(uv --version | cut -d' ' -f2)                                       ║"
+echo "║ MPI:         $(mpirun --version | head -n1 | cut -d' ' -f4)                                     ║"
+echo "║ NumPy:       $(python -c 'import numpy; print(numpy.__version__)')                                       ║"
+echo "║ Project:     /opt/cytrack                                  ║"
+echo "║ Virtual Env: /opt/cytrack/.venv                            ║"
+echo "╠════════════════════════════════════════════════════════════╣"
+echo "║ Quick Commands:                                            ║"
+echo "║   cytrack-test    Run regression test                      ║"
+echo "║   cytrack-help    Show CyTRACK help                        ║"
+echo "║   pytest          Run unit tests                           ║"
+echo "╚════════════════════════════════════════════════════════════╝"
+echo ""
+EOF
+
+    # Also configure bashrc as fallback
+    cat >> /root/.bashrc << 'BASHRC_EOF'
+
+# Change to project directory
+cd /opt/cytrack
+
+# Activate virtual environment
+source .venv/bin/activate
+
+# Aliases
+alias ll='ls -lah'
+alias python='python3'
+alias pip='uv pip'
+alias pytest='python -m pytest'
+alias cytrack-test='cd /opt/cytrack/testing_CyTRACK && mpirun -n 1 python run_CyTRACK.py -pf test_CyTRACK.cfg'
+alias cytrack-help='python -c "import cytrack; cytrack.help()"'
+
+# Environment variables
+export CYTRACK_HOME=/opt/cytrack
+export OMP_NUM_THREADS=1
+export PYTHONPATH=/opt/cytrack/src:$PYTHONPATH
+
+# Welcome message
+echo ""
+echo "╔════════════════════════════════════════════════════════════╗"
+echo "║                  CyTRACK v2.0 Container                    ║"
+echo "╠════════════════════════════════════════════════════════════╣"
+echo "║ Python:      $(python3 --version | cut -d' ' -f2)                                        ║"
+echo "║ UV:          $(uv --version | cut -d' ' -f2)                                       ║"
+echo "║ MPI:         $(mpirun --version | head -n1 | cut -d' ' -f4)                                     ║"
+echo "║ Project:     /opt/cytrack                                  ║"
+echo "║ Virtual Env: /opt/cytrack/.venv                            ║"
+echo "╠════════════════════════════════════════════════════════════╣"
+echo "║ Quick Commands:                                            ║"
+echo "║   cytrack-test    Run regression test                      ║"
+echo "║   cytrack-help    Show CyTRACK help                        ║"
+echo "║   pytest          Run unit tests                           ║"
+echo "╚════════════════════════════════════════════════════════════╝"
+echo ""
+BASHRC_EOF
+
+    # Set permissions
+    chmod -R 755 /opt/cytrack
+    chmod -R 777 /opt/zshdir
+
+    # Clean up
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+    export PATH=/usr/local/bin:/opt/cytrack/.venv/bin:$PATH
+    export PYTHONUNBUFFERED=1
+    export PYTHONPATH=/opt/cytrack/src:$PYTHONPATH
+    export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+    export CYTRACK_HOME=/opt/cytrack
+    export OMP_NUM_THREADS=1
+    export UV_NO_CACHE=1
+    export TERM=xterm-256color
+    export ZDOTDIR=/opt/zshdir
+
+%runscript
+    cd /opt/cytrack
+    exec zsh
+
+%startscript
+    cd /opt/cytrack
+    exec zsh

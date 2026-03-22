@@ -1,0 +1,167 @@
+Bootstrap: docker
+From: python:3.14-slim-bookworm
+
+%post
+    # Update package lists and install system dependencies
+    apt-get update && apt-get install -y \
+        curl \
+        wget \
+        ca-certificates \
+        gcc \
+        g++ \
+        gfortran \
+        make \
+        cmake \
+        git \
+        build-essential \
+        pkg-config \
+        libpq-dev \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        libxml2-dev \
+        libgeos-dev \
+        libproj-dev \
+        libsqlite3-dev \
+        libbz2-dev \
+        libffi-dev \
+        libncurses5-dev \
+        libreadline-dev \
+        liblzma-dev \
+        zlib1g-dev \
+        libzstd-dev \
+        libjpeg-dev \
+        libpng-dev \
+        libtiff-dev \
+        libhdf5-dev \
+        libnetcdf-dev \
+        libopenblas-dev \
+        liblz4-dev \
+        libsnappy-dev \
+        libbrotli-dev \
+        proj-bin \
+        libproj-dev \
+        libgeos++-dev \
+        postgresql-client \
+        postgis \
+        unzip \
+        gdal-bin \
+        libgdal-dev \
+        zsh \
+        lsd 
+
+    # Install DuckDB CLI
+    curl https://install.duckdb.org | sh
+    cp /root/.duckdb/cli/latest/duckdb /usr/local/bin/
+    chmod +x /usr/local/bin/duckdb
+
+    # Install UV to a system-wide location
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    cp /root/.local/bin/uv /usr/local/bin/
+    cp /root/.local/bin/uvx /usr/local/bin/
+    chmod +x /usr/local/bin/uv /usr/local/bin/uvx
+
+    # Install Oh My Posh
+    wget https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-linux-amd64 -O /usr/local/bin/oh-my-posh
+    chmod +x /usr/local/bin/oh-my-posh
+
+    # Download atomic theme (will be overwritten if local file exists)
+    mkdir -p /opt/themes
+    wget -O /opt/themes/atomic.omp.json https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/atomic.omp.json
+
+    # Clone the seaice-cyclone-imagery repository
+    git clone https://github.com/aashraychegu/seaice-cyclone-imagery.git /opt/project
+
+    # Create venv and sync dependencies
+    cd /opt/project
+    /usr/local/bin/uv venv .venv --python 3.14
+    /usr/local/bin/uv sync
+
+    # Create writable ZDOTDIR
+    mkdir -p /opt/zshdir
+    
+    # Create .zshrc with Oh My Posh initialization and project setup
+    cat > /opt/zshdir/.zshrc << 'EOF'
+# Initialize Oh My Posh
+eval "$(oh-my-posh init zsh --config /opt/themes/atomic.omp.json)"
+
+# Change to project directory
+cd /opt/project
+
+# Activate virtual environment
+source .venv/bin/activate
+
+# Aliases
+alias ll='ls -lah'
+alias python='python3'
+alias pip='uv pip'
+alias duck='duckdb'
+
+# Welcome message
+echo ""
+echo "Thalassoica Container"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Python: $(python3 --version)"
+echo "UV: $(uv --version)"
+echo "DuckDB: $(duckdb --version)"
+echo "GDAL: $(gdal-config --version)"
+echo "Project: /opt/project"
+echo "Virtual Env: /opt/project/.venv"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+EOF
+
+    # Also configure bashrc as fallback
+    cat >> /root/.bashrc << 'BASHRC_EOF'
+
+# Change to project directory
+cd /opt/project
+
+# Activate virtual environment
+source .venv/bin/activate
+
+# Aliases
+alias ll='ls -lah'
+alias python='python3'
+alias pip='uv pip'
+alias duck='duckdb'
+
+# Welcome message
+echo ""
+echo "Thalassoica Container"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Python: $(python3 --version)"
+echo "UV: $(uv --version)"
+echo "DuckDB: $(duckdb --version)"
+echo "GDAL: $(gdal-config --version)"
+echo "Project: /opt/project"
+echo "Virtual Env: /opt/project/.venv"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+BASHRC_EOF
+
+    # Clean up
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+
+%files
+    # Copy local atomic.omp.json if it exists (will override the downloaded one)
+    atomic.omp.json /opt/themes/atomic.omp.json
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+    export PATH=/usr/local/bin:/opt/project/.venv/bin:$PATH
+    export PYTHONUNBUFFERED=1
+    export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+    export PROJECT_DIR=/opt/project
+    export UV_NO_CACHE=1
+    export TERM=xterm-256color
+    export ZDOTDIR=/opt/zshdir
+
+%runscript
+    cd /opt/project
+    exec zsh
+
+%startscript
+    cd /opt/project
+    exec zsh

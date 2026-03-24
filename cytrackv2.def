@@ -16,9 +16,6 @@ From: python:3.10-slim-bookworm
         apptainer shell cytrack.sif
         apptainer exec cytrack.sif cytrack-test
 
-%arguments
-    GITHUB_TOKEN=
-
 %post
     echo {{ githubtoken }}
     # Update package lists and install system dependencies
@@ -146,17 +143,7 @@ addopts = "-v --tb=short"
 PYPROJECT_EOF
 
     # Create venv and sync dependencies
-    /usr/local/bin/uv venv .venv --python 3.10
-    /usr/local/bin/uv pip install -e .
-
-    # Install CyTRACK from src
-    cd /opt/cytrack/src
-    /opt/cytrack/.venv/bin/pip install -e .
-
-    # Create test data directory structure
-    mkdir -p /opt/cytrack/testing_CyTRACK/data/ERA5_data
-    mkdir -p /opt/cytrack/testing_CyTRACK/CyTRACK_output
-
+    /usr/local/bin/uv venv .venv --python 3.14
     # Create writable ZDOTDIR
     mkdir -p /opt/zshdir
     
@@ -174,35 +161,12 @@ source .venv/bin/activate
 # Aliases
 alias ll='lsd -lah'
 alias ls='lsd'
-alias python='python3'
-alias pip='uv pip'
-alias pytest='python -m pytest'
-alias cytrack-test='cd /opt/cytrack/testing_CyTRACK && mpirun -n 1 python run_CyTRACK.py -pf test_CyTRACK.cfg'
-alias cytrack-help='python -c "import cytrack; cytrack.help()"'
 
 # Environment variables
 export CYTRACK_HOME=/opt/cytrack
 export OMP_NUM_THREADS=1
 export PYTHONPATH=/opt/cytrack/src:$PYTHONPATH
 
-# Welcome message
-echo ""
-echo "╔════════════════════════════════════════════════════════════╗"
-echo "║                  CyTRACK v2.0 Container                    ║"
-echo "╠════════════════════════════════════════════════════════════╣"
-echo "║ Python:      $(python3 --version | cut -d' ' -f2)                                        ║"
-echo "║ UV:          $(uv --version | cut -d' ' -f2)                                       ║"
-echo "║ MPI:         $(mpirun --version | head -n1 | cut -d' ' -f4)                                     ║"
-echo "║ NumPy:       $(python -c 'import numpy; print(numpy.__version__)')                                       ║"
-echo "║ Project:     /opt/cytrack                                  ║"
-echo "║ Virtual Env: /opt/cytrack/.venv                            ║"
-echo "╠════════════════════════════════════════════════════════════╣"
-echo "║ Quick Commands:                                            ║"
-echo "║   cytrack-test    Run regression test                      ║"
-echo "║   cytrack-help    Show CyTRACK help                        ║"
-echo "║   pytest          Run unit tests                           ║"
-echo "╚════════════════════════════════════════════════════════════╝"
-echo ""
 EOF
 
     # Also configure bashrc as fallback
@@ -215,7 +179,6 @@ cd /opt/cytrack
 source .venv/bin/activate
 
 # Aliases
-alias ll='ls -lah'
 alias python='python3'
 alias pip='uv pip'
 alias pytest='python -m pytest'
@@ -227,32 +190,7 @@ export CYTRACK_HOME=/opt/cytrack
 export OMP_NUM_THREADS=1
 export PYTHONPATH=/opt/cytrack/src:$PYTHONPATH
 
-# Welcome message
-echo ""
-echo "╔════════════════════════════════════════════════════════════╗"
-echo "║                  CyTRACK v2.0 Container                    ║"
-echo "╠════════════════════════════════════════════════════════════╣"
-echo "║ Python:      $(python3 --version | cut -d' ' -f2)                                        ║"
-echo "║ UV:          $(uv --version | cut -d' ' -f2)                                       ║"
-echo "║ MPI:         $(mpirun --version | head -n1 | cut -d' ' -f4)                                     ║"
-echo "║ Project:     /opt/cytrack                                  ║"
-echo "║ Virtual Env: /opt/cytrack/.venv                            ║"
-echo "╠════════════════════════════════════════════════════════════╣"
-echo "║ Quick Commands:                                            ║"
-echo "║   cytrack-test    Run regression test                      ║"
-echo "║   cytrack-help    Show CyTRACK help                        ║"
-echo "║   pytest          Run unit tests                           ║"
-echo "╚════════════════════════════════════════════════════════════╝"
-echo ""
 BASHRC_EOF
-
-    # Set permissions
-    chmod -R 755 /opt/cytrack
-    chmod -R 777 /opt/zshdir
-
-    # Clean up
-    apt-get clean
-    rm -rf /var/lib/apt/lists/*
 
 %environment
     export LC_ALL=C.UTF-8

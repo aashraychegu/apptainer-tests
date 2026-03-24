@@ -2,6 +2,10 @@ Bootstrap: docker
 From: python:3.14-slim-bookworm
 
 %post
+    # Set environment variables for non-interactive installation
+    export DEBIAN_FRONTEND=noninteractive
+    export TZ=UTC
+    
     # Update package lists and install system dependencies
     apt-get update && apt-get install -y \
         curl \
@@ -34,6 +38,8 @@ From: python:3.14-slim-bookworm
         libtiff-dev \
         libhdf5-dev \
         libnetcdf-dev \
+        libnetcdf-c++4-dev \
+        netcdf-bin \
         libopenblas-dev \
         liblz4-dev \
         libsnappy-dev \
@@ -47,7 +53,9 @@ From: python:3.14-slim-bookworm
         gdal-bin \
         libgdal-dev \
         zsh \
-        lsd 
+        lsd \
+        libopenmpi-dev \
+        openmpi-bin
 
     # Install DuckDB CLI
     curl https://install.duckdb.org | sh
@@ -76,6 +84,31 @@ From: python:3.14-slim-bookworm
     /usr/local/bin/uv venv .venv --python 3.14
     /usr/local/bin/uv sync
 
+    # Install TempestExtremes
+    cd /opt
+    git clone https://github.com/ClimateGlobalChange/tempestextremes.git
+    cd tempestextremes
+    
+    # Create build directory
+    mkdir -p build
+    cd build
+    
+    # Configure with CMake
+    cmake \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/opt/tempestextremes \
+        -DENABLE_MPI=ON \
+        -DCMAKE_CXX_FLAGS="-O3" \
+        ..
+    
+    # Compile and install
+    make -j$(nproc)
+    make install
+    
+    # Clean up build files to reduce image size
+    cd /opt/tempestextremes
+    rm -rf build
+
     # Create writable ZDOTDIR
     mkdir -p /opt/zshdir
     
@@ -98,12 +131,13 @@ alias duck='duckdb'
 
 # Welcome message
 echo ""
-echo "Thalassoica Container"
+echo "Thalassoica + TempestExtremes Container"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Python: $(python3 --version)"
 echo "UV: $(uv --version)"
 echo "DuckDB: $(duckdb --version)"
 echo "GDAL: $(gdal-config --version)"
+echo "TempestExtremes: /opt/tempestextremes/bin"
 echo "Project: /opt/project"
 echo "Virtual Env: /opt/project/.venv"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -127,12 +161,13 @@ alias duck='duckdb'
 
 # Welcome message
 echo ""
-echo "Thalassoica Container"
+echo "Thalassoica + TempestExtremes Container"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Python: $(python3 --version)"
 echo "UV: $(uv --version)"
 echo "DuckDB: $(duckdb --version)"
 echo "GDAL: $(gdal-config --version)"
+echo "TempestExtremes: /opt/tempestextremes/bin"
 echo "Project: /opt/project"
 echo "Virtual Env: /opt/project/.venv"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -150,13 +185,16 @@ BASHRC_EOF
 %environment
     export LC_ALL=C.UTF-8
     export LANG=C.UTF-8
-    export PATH=/usr/local/bin:/opt/project/.venv/bin:$PATH
+    # Thalassoica paths take priority
+    export PATH=/opt/project/.venv/bin:/usr/local/bin:/opt/tempestextremes/bin:$PATH
     export PYTHONUNBUFFERED=1
-    export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=/usr/local/lib:/usr/lib/x86_64-linux-gnu:/opt/tempestextremes/lib:$LD_LIBRARY_PATH
     export PROJECT_DIR=/opt/project
     export UV_NO_CACHE=1
     export TERM=xterm-256color
     export ZDOTDIR=/opt/zshdir
+    # TempestExtremes paths
+    export TEMPEST_DIR=/opt/tempestextremes
 
 %runscript
     cd /opt/project
@@ -165,3 +203,42 @@ BASHRC_EOF
 %startscript
     cd /opt/project
     exec zsh
+
+%labels
+    Author Aashray Chegu
+    Version 1.0
+    Description Thalassoica environment with TempestExtremes for sea ice cyclone imagery analysis
+    ThalassoicaRepo https://github.com/aashraychegu/seaice-cyclone-imagery
+    TempestExtremesRepo https://github.com/ClimateGlobalChange/tempestextremes
+
+%help
+    This container combines the Thalassoica Python environment with TempestExtremes.
+    The Thalassoica setup takes priority in PATH and environment configuration.
+    
+    To build this container:
+        apptainer build thalassoica.sif thalassoica.def
+    
+    To run interactively:
+        apptainer shell thalassoica.sif
+    
+    Project directory: /opt/project
+    Python virtual environment: /opt/project/.venv (auto-activated)
+    TempestExtremes binaries: /opt/tempestextremes/bin
+    
+    Available TempestExtremes commands:
+        - DetectNodes: Detect features based on thresholds
+        - StitchNodes: Connect features across time
+        - NodeFileEditor: Edit and filter node files
+        - DetectBlobs: Detect closed contour features
+        - StitchBlobs: Connect blobs across time
+        - BlockingDevs: Calculate blocking deviations
+    
+    Available Python tools:
+        - python3/python: Python 3.14
+        - uv: Fast Python package installer
+        - duckdb: In-process SQL OLAP database
+        - GDAL tools for geospatial data
+    
+    For more information:
+    Thalassoica: https://github.com/aashraychegu/seaice-cyclone-imagery
+    TempestExtremes: https://climate.ucdavis.edu/tempestextremes.php

@@ -131,12 +131,9 @@ alias duck='duckdb'
 
 # Welcome message
 echo ""
-echo "Thalassoica + TempestExtremes Container"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Python: $(python3 --version)"
 echo "UV: $(uv --version)"
 echo "DuckDB: $(duckdb --version)"
-echo "GDAL: $(gdal-config --version)"
 echo "TempestExtremes: /opt/tempestextremes/bin"
 echo "Project: /opt/project"
 echo "Virtual Env: /opt/project/.venv"
@@ -161,16 +158,7 @@ alias duck='duckdb'
 
 # Welcome message
 echo ""
-echo "Thalassoica + TempestExtremes Container"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Python: $(python3 --version)"
-echo "UV: $(uv --version)"
-echo "DuckDB: $(duckdb --version)"
-echo "GDAL: $(gdal-config --version)"
-echo "TempestExtremes: /opt/tempestextremes/bin"
-echo "Project: /opt/project"
-echo "Virtual Env: /opt/project/.venv"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Thalassoica: "
 echo ""
 BASHRC_EOF
 

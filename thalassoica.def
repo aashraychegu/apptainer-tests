@@ -38,8 +38,6 @@ From: python:3.14-slim-bookworm
         libpng-dev \
         libtiff-dev \
         libhdf5-dev \
-        libhdf5-hl-c++-dev \
-        libhdf5-hl-fortran-dev \
         libnetcdf-dev \
         libnetcdf-c++4-dev \
         netcdf-bin \
